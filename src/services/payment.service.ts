@@ -29,6 +29,7 @@ export const createOneTimePaymentSession = async (amount: number, customerId: st
         metadata: { userId },
         payment_intent_data: { metadata: {userId}}
     })
+    console.log("checkout session created --  >")
     return session
 }
 

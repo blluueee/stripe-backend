@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { stripe } from "../config/stripe";
-import { escape } from "node:querystring";
 
 export const stripeWebhook = async (req: Request, res: Response) => {
   const signature = req.headers["stripe-signature"] as string;
@@ -12,12 +11,8 @@ export const stripeWebhook = async (req: Request, res: Response) => {
       signature,
       process.env.STRIPE_WEBHOOK_SECRETKEY!,
     );
-  } catch (err) {
-    console.log("Webhook signature failed");
-    return res.sendStatus(400);
-  }
 
-  switch (event.type) {
+    switch (event.type) {
     case "checkout.session.completed":
       const session = event.data.object
       console.log("CHeckout completed", session.id);
@@ -41,4 +36,9 @@ export const stripeWebhook = async (req: Request, res: Response) => {
   }
 
   res.json({ received: true})
-};
+  } catch (err) {
+    console.log("Webhook signature failed",err);
+    return res.sendStatus(400);
+  }
+}
+  
