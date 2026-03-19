@@ -11,16 +11,22 @@ export const stripeWebhook = async (req: Request, res: Response) => {
   let event: Stripe.Event;
 
   try {
+    console.log("🔔 Webhook received!");
+    console.log("Signature:", signature?.substring(0, 20) + "...");
+
     event = stripe.webhooks.constructEvent(
       req.body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRETKEY!,
     );
+    console.log("✅ Event verified:", event.type);
 
     switch (event.type) {
       case "checkout.session.completed":
         const session = event.data.object as Stripe.Checkout.Session;
         console.log("CHeckout completed", session.id);
+        console.log("Metadata:", session.metadata);
+
         const discountAmount = session.total_details?.amount_discount ?? 0;
 
         if (discountAmount > 0) {
@@ -37,29 +43,50 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           const customerId = session.customer as string;
           const userId = session.metadata?.userId;
 
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          console.log("📝 Subscription Details:");
+          console.log("  - Subscription ID:", subscriptionId);
+          console.log("  - Customer ID:", customerId);
+          console.log("  - User ID:", userId);
+          console.log("  - User ID Type:", typeof userId);
 
-          const savedSub = await Subscription.findOneAndUpdate(
-            { subscriptionId: subscription.id },
-            {
-              userId: new Types.ObjectId(userId),
-              stripeCustomerId: customerId,
-              subscriptionId: subscription.id,
-              status: subscription.status,
-              trialStart: subscription.trial_start
-                ? new Date(subscription.trial_start * 1000)
-                : null,
-              trialEnd: subscription.trial_end
-                ? new Date(subscription.trial_end * 1000)
-                : null,
-              isTrial: subscription.status === "trialing",
-              isTrialUsed: true,
-            },
-            { upsert: true, new: true },
-          );
-          await User.findByIdAndUpdate(userId, {
-            currentSubscriptionId: savedSub._id,
-          });
+          if (!userId) {
+            console.log("Missing userId → not saving subscription");
+            break;
+          }
+
+          try {
+            const subscription =
+              await stripe.subscriptions.retrieve(subscriptionId);
+            console.log("✅ Subscription retrieved from Stripe");
+
+            const savedSub = await Subscription.findOneAndUpdate(
+              { subscriptionId: subscription.id },
+              {
+                userId: new Types.ObjectId(userId),
+                stripeCustomerId: customerId,
+                subscriptionId: subscription.id,
+                status: subscription.status,
+                trialStart: subscription.trial_start
+                  ? new Date(subscription.trial_start * 1000)
+                  : null,
+                trialEnd: subscription.trial_end
+                  ? new Date(subscription.trial_end * 1000)
+                  : null,
+                isTrial: subscription.status === "trialing",
+                isTrialUsed: true,
+              },
+              { upsert: true, new: true },
+            );
+            console.log("✅ Subscription saved to DB:", savedSub._id);
+
+            await User.findByIdAndUpdate(userId, {
+              currentSubscriptionId: savedSub._id,
+            });
+            console.log("✅ User updated with subscription");
+          } catch (error) {
+            console.error("❌ Error saving subscription:", error);
+            throw error;
+          }
         }
 
         break;
@@ -80,20 +107,21 @@ export const stripeWebhook = async (req: Request, res: Response) => {
       case "invoice.payment_succeeded":
         {
           const invoice = event.data.object as Record<string, any>;
-          console.log("Subscription payment success", invoice.id);
+          console.log("Invoice received", invoice.id);
 
           const subscription = invoice.subscription;
           const stripeSubscriptionId =
             typeof subscription === "string" ? subscription : subscription?.id;
 
           if (!stripeSubscriptionId) {
-            throw new Error("No subscription found in invoice");
+            throw new Error("Not a subscription invoice, skipping");
           }
 
           await Subscription.findOneAndUpdate(
             { subscriptionId: stripeSubscriptionId },
             { status: "active" },
           );
+           console.log("✅ Subscription payment success:", invoice.subscription);
         }
         break;
 
@@ -147,7 +175,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
 
     res.json({ received: true });
   } catch (err) {
-    console.log("Webhook signature failed", err);
+    console.error("❌ Webhook error, Signature verification failed:", err.message);
     return res.sendStatus(400);
   }
 };

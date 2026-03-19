@@ -1,4 +1,4 @@
-import mongoose, { Schema, ObjectId, Types } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
 export interface ISubscription {
   userId: Types.ObjectId,
