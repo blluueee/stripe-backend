@@ -1,11 +1,12 @@
-import mongoose, { Schema, ObjectId } from "mongoose";
+import mongoose, { Schema, ObjectId, Types } from "mongoose";
 
 export interface IUser {
     _id?: ObjectId,
     email: string, 
     password: string,
     stripeCustomerId: string,
-    subscriptionId: string,
+    subscriptionId: ObjectId,
+    
 }
 
 const userSchema = new Schema<IUser>({
@@ -21,7 +22,7 @@ const userSchema = new Schema<IUser>({
         type: String
     },
     subscriptionId: {
-        type: String
+        type: Types.ObjectId
     }
 },
 {
