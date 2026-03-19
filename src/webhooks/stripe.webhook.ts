@@ -175,7 +175,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
 
     res.json({ received: true });
   } catch (err) {
-    console.error("❌ Webhook error, Signature verification failed:", err.message);
+    console.error("❌ Webhook error, Signature verification failed:", err);
     return res.sendStatus(400);
   }
 };
