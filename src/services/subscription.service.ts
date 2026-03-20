@@ -1,11 +1,11 @@
 import { stripe } from "../config/stripe";
 import Subscription from "../models/Subscription";
-import { findActivePromotionCode } from "./promocode.service";
+// cspell:ignore promocode
+import User, { IUser } from "../models/User";
 import { Request } from "../types/request";
-import { IUser } from "../models/User";
+import { findActivePromotionCode } from "./promocode.service";
 
 export const createCheckoutSession = async (
-  customerId: string,
   priceId: string,
   req: Request,
   promoCode?: string,
@@ -23,15 +23,34 @@ export const createCheckoutSession = async (
   if (!req.user) {
     throw new Error("User not authenticated");
   }
-  const user = req.user as IUser
-  
-  const existing = await Subscription.findOne({ user: user._id });
-  if (existing?.isTrialUsed) { 
+  const user = req.user as IUser;
+
+  const existing = await Subscription.findOne({ userId: user._id });
+  if (existing?.isTrialUsed) {
     throw new Error("Free trial already used");
   }
 
+  let stripeCustomerId = user.stripeCustomerId;
+
+  if (!stripeCustomerId) {
+    console.log("🆕 Creating Stripe customer...");
+
+    const customer = await stripe.customers.create({
+      email: user.email,
+    });
+
+    stripeCustomerId = customer.id;
+    await User.findByIdAndUpdate(user._id, {
+      stripeCustomerId: stripeCustomerId,
+    });
+
+    console.log("Stripe customer created:", stripeCustomerId);
+  } else {
+    console.log("Reusing existing Stripe customer:", stripeCustomerId);
+  }
+
   const session = await stripe.checkout.sessions.create({
-    customer: customerId,
+    customer: stripeCustomerId,
     mode: "subscription",
     customer_email: user.email,
     payment_method_types: ["card"],

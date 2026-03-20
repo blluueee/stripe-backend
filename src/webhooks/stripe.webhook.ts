@@ -100,7 +100,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
       case "payment_intent.succeeded":
         {
           const paymentIntent = event.data.object;
-          console.log("Payment successfull", paymentIntent.id);
+          console.log("Payment successful", paymentIntent.id);
 
           await generateInvoice(
             paymentIntent.customer as string,

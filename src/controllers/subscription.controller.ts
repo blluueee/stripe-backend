@@ -1,5 +1,8 @@
 import User from "../models/User";
-import { createCheckoutSession, createCustomer } from "../services/subscription.service";
+import {
+  createCheckoutSession,
+  createCustomer,
+} from "../services/subscription.service";
 import { Request } from "../types/request";
 import { Response } from "express";
 
@@ -23,11 +26,11 @@ export const createCheckoutController = async (req: Request, res: Response) => {
       await user.save();
     }
 
-    const session = await createCheckoutSession(
-      customerId, priceId, req, promoCode
-    );
+    const session = await createCheckoutSession(priceId, req, promoCode);
     res.json({ url: session.url });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || "Unable to create checkout session" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Unable to create checkout session" });
   }
 };
