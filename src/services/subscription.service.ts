@@ -1,11 +1,13 @@
 import { stripe } from "../config/stripe";
 import Subscription from "../models/Subscription";
 import { findActivePromotionCode } from "./promocode.service";
+import { Request } from "../types/request";
+import { IUser } from "../models/User";
 
 export const createCheckoutSession = async (
   customerId: string,
   priceId: string,
-  userId: string,
+  req: Request,
   promoCode?: string,
 ) => {
   let discounts;
@@ -18,16 +20,20 @@ export const createCheckoutSession = async (
     discounts = [{ promotion_code: promo.id }];
   }
 
+  if (!req.user) {
+    throw new Error("User not authenticated");
+  }
+  const user = req.user as IUser
   
-
-  const existing = await Subscription.findOne({ userId });
-  if (existing?.isTrialUsed) {
+  const existing = await Subscription.findOne({ user: user._id });
+  if (existing?.isTrialUsed) { 
     throw new Error("Free trial already used");
   }
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
+    customer_email: user.email,
     payment_method_types: ["card"],
     subscription_data: {
       trial_period_days: 7,
@@ -36,8 +42,8 @@ export const createCheckoutSession = async (
           missing_payment_method: "cancel",
         },
       },
-      metadata: { userId }
     },
+    metadata: { userId: user._id.toString() },
     line_items: [{ price: priceId, quantity: 1 }],
     discounts,
     // allow_promotion_codes: !promoCode,
@@ -45,8 +51,6 @@ export const createCheckoutSession = async (
     success_url:
       "http://localhost:5000/success?session_id={CHECKOUT_SESSION_ID}",
     cancel_url: "http://localhost:5000/cancel",
-
-    metadata: { userId },
   });
   return session;
 };

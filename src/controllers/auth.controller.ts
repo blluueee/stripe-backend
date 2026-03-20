@@ -70,7 +70,7 @@ export const login = async (req: Request, res: Response) => {
     process.env.JWT_SECRETKEY
   );
 
-  res.json({token});
+  res.json({token, user: { id: user._id, email: user.email}});
 
 } catch(error) {
   console.error("Login error:", error);

@@ -1,4 +1,5 @@
-import { Request, Response } from "express";
+import { Response } from "express";
+import { Request } from "../types/request";
 import { stripe } from "../config/stripe";
 import { generateInvoice } from "../services/invoice.service";
 import Subscription from "../models/Subscription";
@@ -37,6 +38,11 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         } else {
           console.log("No discount applied");
         }
+
+        console.log("Incoming User: ", req.userId);
+        const userExists = await User.findById(req.userId)
+        console.log("User Exists?", !!userExists)
+        
 
         if (session.mode === "subscription") {
           const subscriptionId = session.subscription as string;
@@ -80,7 +86,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
             console.log("✅ Subscription saved to DB:", savedSub._id);
 
             await User.findByIdAndUpdate(userId, {
-              currentSubscriptionId: savedSub._id,
+              subscriptionId: savedSub._id, stripeCustomerId: customerId
             });
             console.log("✅ User updated with subscription");
           } catch (error) {

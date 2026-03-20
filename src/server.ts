@@ -3,7 +3,7 @@ import dotenv from "dotenv"
 import paymentRoutes from "./routes/pay.route"
 import { stripeWebhook } from "./webhooks/stripe.webhook"
 import { connectDB } from "./db/db"
-import { Response, NextFunction } from "express"
+import { Response } from "express"
 import { Request } from "./types/request"
 
 dotenv.config()
