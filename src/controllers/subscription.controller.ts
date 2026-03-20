@@ -24,7 +24,7 @@ export const createCheckoutController = async (req: Request, res: Response) => {
     }
 
     const session = await createCheckoutSession(
-      customerId, priceId, user._id.toString(), promoCode
+      customerId, priceId, req, promoCode
     );
     res.json({ url: session.url });
   } catch (error: any) {
