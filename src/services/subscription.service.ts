@@ -52,7 +52,6 @@ export const createCheckoutSession = async (
   const session = await stripe.checkout.sessions.create({
     customer: stripeCustomerId,
     mode: "subscription",
-    customer_email: user.email,
     payment_method_types: ["card"],
     subscription_data: {
       trial_period_days: 7,
