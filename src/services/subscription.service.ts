@@ -73,6 +73,32 @@ export const createCheckoutSession = async (
   return session;
 };
 
+export const cancelSubscription = async (req: Request, immediate: false) => {
+  if(!req.user){ 
+    throw new Error("User not authenticated")
+  }
+
+  const user = req.user as IUser
+  const dbUser = await User.findById(user._id)
+  if(!dbUser?.subscriptionId){
+    throw new Error("No active subscription found")
+  }
+
+  const subscription = await Subscription.findById(dbUser.subscriptionId)
+  if(!subscription){
+    throw new Error("Subscription not found")
+  }
+
+  if(immediate){
+    await stripe.subscriptions.cancel(subscription.subscriptionId)
+
+    await Subscription.findByIdAndUpdate(subscription._id, {
+      status: "canceled", isTrial: "false"
+    })
+    return { message: "Subscription will cancel at period end"}
+  }
+}
+
 export const createCustomer = async (email: string) => {
   return await stripe.customers.create({
     email: email,

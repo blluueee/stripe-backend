@@ -6,6 +6,7 @@ import Subscription from "../models/Subscription";
 import User from "../models/User";
 import Stripe from "stripe";
 import { Types } from "mongoose";
+import { publishPaymentFailureJob } from "../queues/publisher";
 
 export const stripeWebhook = async (req: Request, res: Response) => {
   const signature = req.headers["stripe-signature"] as string;
@@ -18,7 +19,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
     event = stripe.webhooks.constructEvent(
       req.body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRETKEY!,
+      process.env.STRIPE_WEBHOOK_SECRET_KEY!,
     );
     console.log("✅ Event verified:", event.type);
 
@@ -40,14 +41,14 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         }
 
         console.log("Incoming User: ", req.userId);
-        const userExists = await User.findById(req.userId)
-        console.log("User Exists?", !!userExists)
         
-
+        
         if (session.mode === "subscription") {
           const subscriptionId = session.subscription as string;
           const customerId = session.customer as string;
           const userId = session.metadata?.userId;
+          // const userExists = await User.findById(userId)
+          // console.log("User Exists?", !!userExists)
 
           console.log("📝 Subscription Details:");
           console.log("  - Subscription ID:", subscriptionId);
@@ -136,10 +137,18 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           const invoice = event.data.object as Record<string, any>;
           console.log("Subscription payment failed", invoice.id);
 
-          await Subscription.findOneAndUpdate(
-            { subscriptionId: invoice.subscription as string },
-            { status: "canceled" },
-          );
+          await Subscription.findOneAndUpdate({ subscriptionId: invoice.subscription },
+            { status: "past_due" }) //this prevents cancelling immediately
+
+          await publishPaymentFailureJob({
+            invoiceId: invoice.id, customerId: invoice.customer, subscriptionId: invoice.subscription
+          })
+
+          // w/out RabbitMQ
+          // await Subscription.findOneAndUpdate(
+          //   { subscriptionId: invoice.subscription as string },
+          //   { status: "canceled" }
+          // );
         }
         break;
 

@@ -1,7 +1,7 @@
 import express from "express"
 import { login, register } from "../controllers/auth.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { createCheckoutController } from "../controllers/subscription.controller";
+import { createCheckoutController, cancelSubscriptionController } from "../controllers/subscription.controller";
 import { createOneTimePaymentController } from "../controllers/payment.controller";
 import { fetchInvoice } from "../controllers/invoice.controller";
 
@@ -10,6 +10,7 @@ router.post("/register", register);
 router.post("/login", login);
 // router.post("/customer", createCustomerController)
 router.post("/subscription", authMiddleware, createCheckoutController)
+router.post("/cancel-subscription", authMiddleware, cancelSubscriptionController)
 router.post("/one-time-purchase", authMiddleware, createOneTimePaymentController)
 router.get("/invoice/:invoiceId", fetchInvoice)
 // router.post("/payment-method", attachPaymentMethodController)
