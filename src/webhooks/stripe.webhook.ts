@@ -55,7 +55,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
             stripeCustomerId,
             subscriptionId: stripeSubscription.id,
             priceId: price.id,
-            productId: price.product as string
+            productId: price.product as string,
             status: stripeSubscription.status,
             trialStart: stripeSubscription.trial_start
               ? new Date(stripeSubscription.trial_start * 1000)
