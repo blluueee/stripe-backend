@@ -6,7 +6,7 @@ export interface ISubscription {
   subscriptionId: string,
   priceId: string,
   status: "active" | "trialing" | "canceled",
-
+  productId: string,
   trialStart: Date,
   trialEnd: Date,
   isTrial: boolean,
