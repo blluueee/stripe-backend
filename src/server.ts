@@ -24,7 +24,10 @@ app.get("/failed", (req: Request, res: Response) => {
   res.send("payment failed");
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT 
+if(!PORT) {
+  throw new Error("Port is not defined")
+}
 const startServer = async () => {
   try {
     await connectDB();

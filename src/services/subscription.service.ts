@@ -60,6 +60,7 @@ export const createCheckoutSession = async (
           missing_payment_method: "cancel",
         },
       },
+      metadata: { userId: user._id.toString() },
     },
     metadata: { userId: user._id.toString() },
     line_items: [{ price: priceId, quantity: 1 }],
@@ -68,12 +69,12 @@ export const createCheckoutSession = async (
 
     success_url:
       "http://localhost:5000/success?session_id={CHECKOUT_SESSION_ID}",
-    cancel_url: "http://localhost:5000/cancel",
+    cancel_url: "http://localhost:5000/failed",
   });
   return session;
 };
 
-export const cancelSubscription = async (req: Request, immediate: false) => {
+export const cancelSubscription = async (req: Request, immediate: string) => {
   if(!req.user){ 
     throw new Error("User not authenticated")
   }
@@ -93,7 +94,7 @@ export const cancelSubscription = async (req: Request, immediate: false) => {
     await stripe.subscriptions.cancel(subscription.subscriptionId)
 
     await Subscription.findByIdAndUpdate(subscription._id, {
-      status: "canceled", isTrial: "false"
+      status: "canceled", isTrial: false
     })
     return { message: "Subscription will cancel at period end"}
   }

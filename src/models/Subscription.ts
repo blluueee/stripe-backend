@@ -4,7 +4,7 @@ export interface ISubscription {
   userId: Types.ObjectId,
   stripeCustomerId: string,
   subscriptionId: string,
-
+  priceId: string,
   status: "active" | "trialing" | "canceled",
 
   trialStart: Date,
@@ -23,6 +23,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
     subscriptionId: {
         type: String
     },
+    priceId: { type: String },
     status: {
         type: String, enum: ["active", "trialing", "canceled"]
     },

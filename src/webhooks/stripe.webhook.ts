@@ -22,81 +22,90 @@ export const stripeWebhook = async (req: Request, res: Response) => {
       process.env.STRIPE_WEBHOOK_SECRET_KEY!,
     );
     console.log("✅ Event verified:", event.type);
+  } catch (err: any) {
+    console.error("Webhook signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
+  try {
     switch (event.type) {
-      case "checkout.session.completed":
+      case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log("CHeckout completed", session.id);
-        console.log("Metadata:", session.metadata);
 
-        const discountAmount = session.total_details?.amount_discount ?? 0;
+        if (session.mode !== "subscription") break;
 
-        if (discountAmount > 0) {
-          console.log(
-            "Discount applied successfully, with amount:",
-            discountAmount,
-          );
-        } else {
-          console.log("No discount applied");
+        const userId = session.metadata?.userId;
+        const stripeCustomerId = session.customer as string;
+        const stripeSubscriptionId = session.subscription as string;
+
+        if (!userId) {
+          console.error("No userId found in checkout session metadata");
+          break;
         }
 
-        console.log("Incoming User: ", req.userId);
-        
-        
-        if (session.mode === "subscription") {
-          const subscriptionId = session.subscription as string;
-          const customerId = session.customer as string;
-          const userId = session.metadata?.userId;
-          // const userExists = await User.findById(userId)
-          // console.log("User Exists?", !!userExists)
+        const stripeSubscription =
+          await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
-          console.log("📝 Subscription Details:");
-          console.log("  - Subscription ID:", subscriptionId);
-          console.log("  - Customer ID:", customerId);
-          console.log("  - User ID:", userId);
-          console.log("  - User ID Type:", typeof userId);
+        const dbSubscription = await Subscription.findOneAndUpdate(
+          { subscriptionId: stripeSubscription.id },
+          {
+            userId,
+            stripeCustomerId,
+            subscriptionId: stripeSubscription.id,
+            priceId: stripeSubscription.items.data[0]?.price.id,
+            status: stripeSubscription.status,
+            trialStart: stripeSubscription.trial_start
+              ? new Date(stripeSubscription.trial_start * 1000)
+              : null,
 
-          if (!userId) {
-            console.log("Missing userId → not saving subscription");
-            break;
-          }
+            trialEnd: stripeSubscription.trial_end
+              ? new Date(stripeSubscription.trial_end * 1000)
+              : null,
+            isTrial: !!stripeSubscription.trial_end,
+            isTrialUsed: true,
+          },
+          { upsert: true, new: true },
+        );
 
-          try {
-            const subscription =
-              await stripe.subscriptions.retrieve(subscriptionId);
-            console.log("✅ Subscription retrieved from Stripe");
+        await User.findByIdAndUpdate(userId, {
+          stripeCustomerId,
+          subscriptionId: dbSubscription._id,
+        });
 
-            const savedSub = await Subscription.findOneAndUpdate(
-              { subscriptionId: subscription.id },
-              {
-                userId: new Types.ObjectId(userId),
-                stripeCustomerId: customerId,
-                subscriptionId: subscription.id,
-                status: subscription.status,
-                trialStart: subscription.trial_start
-                  ? new Date(subscription.trial_start * 1000)
-                  : null,
-                trialEnd: subscription.trial_end
-                  ? new Date(subscription.trial_end * 1000)
-                  : null,
-                isTrial: subscription.status === "trialing",
-                isTrialUsed: true,
-              },
-              { upsert: true, new: true },
-            );
-            console.log("✅ Subscription saved to DB:", savedSub._id);
-
-            await User.findByIdAndUpdate(userId, {
-              subscriptionId: savedSub._id, stripeCustomerId: customerId
-            });
-            console.log("✅ User updated with subscription");
-          } catch (error) {
-            console.error("❌ Error saving subscription:", error);
-            throw error;
-          }
-        }
-
+        console.log("Subscription saved after checkout.session.completed");
         break;
+      }
+
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Stripe.Subscription;
+
+        await Subscription.findOneAndUpdate(
+          { subscriptionId: sub.id },
+          {
+            status: sub.status as any,
+            trialStart: sub.trial_start
+              ? new Date(sub.trial_start * 1000)
+              : null,
+            trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+            isTrial: !!sub.trial_end,
+          },
+        );
+
+        console.log("Subscription updated in DB");
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Stripe.Subscription;
+
+        await Subscription.findOneAndUpdate(
+          { subscriptionId: sub.id },
+          { status: "canceled" },
+        );
+
+        console.log("Subscription canceled in DB");
+        break;
+      }
 
       case "payment_intent.succeeded":
         {
@@ -128,7 +137,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
             { subscriptionId: stripeSubscriptionId },
             { status: "active" },
           );
-           console.log("✅ Subscription payment success:", invoice.subscription);
+          console.log("✅ Subscription payment success:", invoice.subscription);
         }
         break;
 
@@ -137,12 +146,16 @@ export const stripeWebhook = async (req: Request, res: Response) => {
           const invoice = event.data.object as Record<string, any>;
           console.log("Subscription payment failed", invoice.id);
 
-          await Subscription.findOneAndUpdate({ subscriptionId: invoice.subscription },
-            { status: "past_due" }) //this prevents cancelling immediately
+          await Subscription.findOneAndUpdate(
+            { subscriptionId: invoice.subscription },
+            { status: "past_due" },
+          ); //this prevents cancelling immediately
 
           await publishPaymentFailureJob({
-            invoiceId: invoice.id, customerId: invoice.customer, subscriptionId: invoice.subscription
-          })
+            invoiceId: invoice.id,
+            customerId: invoice.customer,
+            subscriptionId: invoice.subscription,
+          });
 
           // w/out RabbitMQ
           // await Subscription.findOneAndUpdate(
@@ -152,45 +165,13 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         }
         break;
 
-      case "customer.subscription.updated": {
-        const subscription = event.data.object;
-
-        // if(subscription.status === "trialing"){
-        //   console.log("User is on free trial");
-        // }
-        await Subscription.findOneAndUpdate(
-          {
-            subscriptionId: subscription.id,
-          },
-          {
-            status: subscription.status,
-            trialStart: subscription.trial_start
-              ? new Date(subscription.trial_start * 1000)
-              : null,
-            trialEnd: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
-            isTrial: subscription.status === "trialing",
-            isTrialUsed: true,
-          },
-        );
-        break;
-      }
-      case "customer.subscription.deleted":
-        {
-          const subscription = event.data.object;
-
-          await Subscription.findOneAndUpdate(
-            { subscriptionId: subscription.id },
-            { status: "canceled", isTrial: false },
-          );
-        }
-        break;
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
     }
 
-    res.json({ received: true });
+    return res.status(200).json({ received: true });
   } catch (err) {
-    console.error("❌ Webhook error, Signature verification failed:", err);
-    return res.sendStatus(400);
+    console.error("Webhook processing failed:", err);
+    return res.status(500).send("Webhook handler failed");
   }
 };

@@ -24,7 +24,7 @@ export const createOneTimePaymentSession = async (amount: number, customerId: st
         // allow_promotion_codes: !promoCode,
         // allow_promotion_codes: true,
         success_url: "http://localhost:5000/success",
-        cancel_url: "http://localhost:5000/cancel",
+        cancel_url: "http://localhost:5000/failed",
 
         metadata: { userId },
         payment_intent_data: { metadata: {userId}}
