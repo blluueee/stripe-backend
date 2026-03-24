@@ -60,15 +60,15 @@ export const createCheckoutSession = async (
     customer: stripeCustomerId,
     mode: "subscription",
     payment_method_types: ["card"],
-    subscription_data: hasUsedTrial ? {} : {
-      trial_period_days: 7,
-      trial_settings: {
-        end_behavior: {
-          missing_payment_method: "cancel",
-        },
-      },
-      metadata: { userId: user._id.toString(), productId },
-    },
+    // subscription_data: hasUsedTrial ? {} : {
+    //   trial_period_days: 7,
+    //   trial_settings: {
+    //     end_behavior: {
+    //       missing_payment_method: "cancel",
+    //     },
+    //   },
+    //   metadata: { userId: user._id.toString(), productId },
+    // },
     metadata: { userId: user._id.toString(), productId },
     line_items: [{ price: priceId, quantity: 1 }],
     discounts,
