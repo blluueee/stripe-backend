@@ -6,6 +6,7 @@ export interface IUser {
   password: string;
   stripeCustomerId: string;
   subscriptionId: ObjectId;
+  isTrialUsed: Boolean
 }
 
 const userSchema = new Schema<IUser>(
@@ -27,6 +28,10 @@ const userSchema = new Schema<IUser>(
       type: Types.ObjectId,
       ref: "Subscription",
     },
+    isTrialUsed: {
+  type: Boolean,
+  default: false
+},
   },
   {
     timestamps: true,

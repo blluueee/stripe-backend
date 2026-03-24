@@ -25,10 +25,17 @@ export const createCheckoutSession = async (
   }
   const user = req.user as IUser;
 
-  const existing = await Subscription.findOne({ userId: user._id });
-  if (existing?.isTrialUsed) {
-    throw new Error("Free trial already used");
-  }
+  const price = await stripe.prices.retrieve(priceId)
+  const productId = price.product as string
+
+  const existingSameProduct = await Subscription.findOne({ userId: user._id, productId, status: { $in: ["active", "trialing"]} });
+  // if (existingSameProduct) {
+  //   throw new Error("ALready subscribed to this product");
+  // }
+
+  const existingTrial = await Subscription.findOne({ userId: user._id, productId, isTrialUsed: true})
+
+  const hasUsedTrial = !!existingTrial
 
   let stripeCustomerId = user.stripeCustomerId;
 
@@ -41,7 +48,7 @@ export const createCheckoutSession = async (
 
     stripeCustomerId = customer.id;
     await User.findByIdAndUpdate(user._id, {
-      stripeCustomerId: stripeCustomerId,
+      stripeCustomerId
     });
 
     console.log("Stripe customer created:", stripeCustomerId);
@@ -53,16 +60,16 @@ export const createCheckoutSession = async (
     customer: stripeCustomerId,
     mode: "subscription",
     payment_method_types: ["card"],
-    subscription_data: {
+    subscription_data: hasUsedTrial ? {} : {
       trial_period_days: 7,
       trial_settings: {
         end_behavior: {
           missing_payment_method: "cancel",
         },
       },
-      metadata: { userId: user._id.toString() },
+      metadata: { userId: user._id.toString(), productId },
     },
-    metadata: { userId: user._id.toString() },
+    metadata: { userId: user._id.toString(), productId },
     line_items: [{ price: priceId, quantity: 1 }],
     discounts,
     // allow_promotion_codes: !promoCode,

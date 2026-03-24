@@ -46,13 +46,16 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         const stripeSubscription =
           await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
+        const price = stripeSubscription.items.data[0].price;
+
         const dbSubscription = await Subscription.findOneAndUpdate(
           { subscriptionId: stripeSubscription.id },
           {
             userId,
             stripeCustomerId,
             subscriptionId: stripeSubscription.id,
-            priceId: stripeSubscription.items.data[0]?.price.id,
+            priceId: price.id,
+            productId: price.product as string
             status: stripeSubscription.status,
             trialStart: stripeSubscription.trial_start
               ? new Date(stripeSubscription.trial_start * 1000)
@@ -70,6 +73,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
         await User.findByIdAndUpdate(userId, {
           stripeCustomerId,
           subscriptionId: dbSubscription._id,
+          isTrialUsed: true
         });
 
         console.log("Subscription saved after checkout.session.completed");

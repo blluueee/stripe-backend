@@ -23,7 +23,8 @@ const SubscriptionSchema = new Schema<ISubscription>({
     subscriptionId: {
         type: String
     },
-    priceId: { type: String },
+    priceId: { type: String, required: true },
+    productId: { type: String, required: true },
     status: {
         type: String, enum: ["active", "trialing", "canceled"]
     },
@@ -48,3 +49,4 @@ export default mongoose.model<ISubscription>("Subscription", SubscriptionSchema)
 
 // price id for one-time: price_1T8FAXCCorgN3Hk03Jg4a5B3
 // price id for rcurring: price_1T8EtECCorgN3Hk0GiQLTnz8
+// another sub-price id for recurring: price_1TEMgfCCorgN3Hk0poShyiv3
